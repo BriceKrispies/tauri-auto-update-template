@@ -25,3 +25,10 @@ dist-ssr
 ~
 # Tauri
 src-tauri/target
+
+# Tauri Signing Keys (NEVER commit these!)
+*.key
+*.pem
+tauri.key
+tauri.key.pub
+.tauri/
