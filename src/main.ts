@@ -82,8 +82,8 @@ async function init() {
 
   checkUpdateBtn.addEventListener("click", checkForUpdates);
 
-  // Check for updates on startup
-  await checkForUpdates();
+  // Check for updates after a short delay (non-blocking startup)
+  setTimeout(() => checkForUpdates(), 2000);
 }
 
 init();
