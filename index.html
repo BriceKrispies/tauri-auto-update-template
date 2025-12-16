@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tauri Auto Update</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Hello from Tauri!</h1>
+      <div class="update-section">
+        <h2>Update Status</h2>
+        <div id="update-status">Checking for updates...</div>
+        <button id="check-update-btn">Check for Updates</button>
+      </div>
+      <div class="version">Version: <span id="app-version"></span></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
