@@ -34,15 +34,20 @@ async function checkForUpdates() {
       if (yes) {
         setStatus("Downloading update...");
 
+        let downloadedBytes = 0;
+        let totalBytes = 0;
         await update.downloadAndInstall((event) => {
           switch (event.event) {
             case "Started":
-              setStatus(`Started download (${event.data.contentLength} bytes)`);
+              totalBytes = event.data.contentLength || 0;
+              setStatus(`Started download${totalBytes > 0 ? ` (${totalBytes} bytes)` : "..."}`);
               break;
             case "Progress":
-              setStatus(
-                `Downloaded ${event.data.chunkLength} bytes (${event.data.downloaded}/${event.data.contentLength})`
-              );
+              downloadedBytes += event.data.chunkLength;
+              const progress = totalBytes > 0
+                ? `${downloadedBytes} / ${totalBytes} bytes`
+                : `${downloadedBytes} bytes`;
+              setStatus(`Downloaded ${progress}`);
               break;
             case "Finished":
               setStatus("Download finished");
