@@ -13,7 +13,8 @@
     "tauri:icon": "tauri icon",
     "check": "tsc --noEmit",
     "validate": "node validate-setup.js",
-    "init": "node init-template.js"
+    "init": "node init-template.js",
+    "diagnose": "node diagnose-signing.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
