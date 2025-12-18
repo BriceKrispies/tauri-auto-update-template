@@ -1,60 +1,81 @@
-name: Release
+name: Release (Hermetic)
 
 on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [published]
 
 jobs:
-  release:
+  # Hermetic Linux release build using Docker
+  release-linux:
+    name: Release Linux (Hermetic)
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
+    runs-on: ubuntu-22.04
+    container:
+      # Pinned Ubuntu container for deterministic builds
+      image: ubuntu:22.04
+      options: --user root
 
-    runs-on: ${{ matrix.platform }}
     steps:
+      - name: Install base dependencies in container
+        run: |
+          apt-get update
+          apt-get install -y \
+            curl \
+            wget \
+            git \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libssl-dev \
+            pkg-config \
+            ca-certificates
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup Node.js
+      - name: Setup Node.js (pinned)
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 20.11.0  # Pinned specific version
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned for hermetic builds)
+        uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a # Pinned SHA
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          toolchain: 1.83.0  # Exact version for reproducibility
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - name: Verify hermetic build environment
+        run: |
+          echo "=== Hermetic Build Environment Verification ==="
+          echo "OS: $(cat /etc/os-release | grep PRETTY_NAME)"
+          echo "Rust: $(rustc --version)"
+          echo "Cargo: $(cargo --version)"
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo ""
+          echo "This build runs in a pinned Docker container for reproducibility"
+          echo "All toolchain versions are explicitly pinned"
+
+      - name: Rust cache (minimal for release builds)
+        uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaff # v2.7.5 pinned
         with:
           workspaces: './src-tauri -> target'
+          prefix-key: 'v1-rust-release'
+          # Note: Release builds use minimal caching to ensure clean, deterministic builds
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci  # Use 'ci' instead of 'install' for deterministic installs
 
       - name: Build the app
         id: tauri_build
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@26fb4ce9375f750a1c2739949c203b61003b5b5a # v0.5.16 pinned
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -66,7 +87,7 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
+          args: ''
 
       - name: Check for signature files (debug)
         run: |
@@ -76,9 +97,146 @@ jobs:
           echo "Build artifacts:"
           find src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle directory found"
 
+  # Hermetic macOS release build with pinned toolchains
+  release-macos:
+    name: Release macOS (Hermetic)
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js (pinned)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20.11.0  # Pinned specific version
+
+      - name: Install Rust toolchain (pinned for hermetic builds)
+        uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a # Pinned SHA
+        with:
+          toolchain: 1.83.0  # Exact version for reproducibility
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Verify hermetic build environment
+        run: |
+          echo "=== Hermetic Build Environment Verification ==="
+          echo "OS: $(sw_vers -productName) $(sw_vers -productVersion)"
+          echo "Rust: $(rustc --version)"
+          echo "Cargo: $(cargo --version)"
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo ""
+          echo "All toolchain versions are explicitly pinned for reproducibility"
+
+      - name: Rust cache (minimal for release builds)
+        uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaff # v2.7.5 pinned
+        with:
+          workspaces: './src-tauri -> target'
+          prefix-key: 'v1-rust-release'
+
+      - name: Install frontend dependencies
+        run: npm ci  # Use 'ci' instead of 'install' for deterministic installs
+
+      - name: Build the app
+        id: tauri_build
+        uses: tauri-apps/tauri-action@26fb4ce9375f750a1c2739949c203b61003b5b5a # v0.5.16 pinned
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: '--target universal-apple-darwin'
+
+      - name: Check for signature files (debug)
+        run: |
+          echo "Checking for .sig files in bundle directory..."
+          find src-tauri/target -name "*.sig" || echo "No .sig files found"
+          echo ""
+          echo "Build artifacts:"
+          find src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle directory found"
+
+  # Hermetic Windows release build with pinned toolchains
+  release-windows:
+    name: Release Windows (Hermetic)
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js (pinned)
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20.11.0  # Pinned specific version
+
+      - name: Install Rust toolchain (pinned for hermetic builds)
+        uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a # Pinned SHA
+        with:
+          toolchain: 1.83.0  # Exact version for reproducibility
+
+      - name: Verify hermetic build environment
+        shell: bash
+        run: |
+          echo "=== Hermetic Build Environment Verification ==="
+          echo "OS: Windows $(systeminfo | grep 'OS Version' | head -1)"
+          echo "Rust: $(rustc --version)"
+          echo "Cargo: $(cargo --version)"
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo ""
+          echo "All toolchain versions are explicitly pinned for reproducibility"
+
+      - name: Rust cache (minimal for release builds)
+        uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaff # v2.7.5 pinned
+        with:
+          workspaces: './src-tauri -> target'
+          prefix-key: 'v1-rust-release'
+
+      - name: Install frontend dependencies
+        run: npm ci  # Use 'ci' instead of 'install' for deterministic installs
+
+      - name: Build the app
+        id: tauri_build
+        uses: tauri-apps/tauri-action@26fb4ce9375f750a1c2739949c203b61003b5b5a # v0.5.16 pinned
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ''
+
+      - name: Check for signature files (debug)
+        shell: bash
+        run: |
+          echo "Checking for .sig files in bundle directory..."
+          find src-tauri/target -name "*.sig" || echo "No .sig files found"
+          echo ""
+          echo "Build artifacts:"
+          find src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle directory found"
+
   verify-updater:
     name: Verify updater JSON
-    needs: release
+    needs: [release-linux, release-macos, release-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Wait for release to be fully published

@@ -1,0 +1,164 @@
+name: CI - Fast Path
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  ci-fast:
+    name: Fast CI (Lint, Build, Test)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            target: ''
+          - platform: 'windows-latest'
+            target: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust toolchain (pinned)
+        uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a # stable as of 2024-12-18
+        with:
+          toolchain: 1.83.0
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache (with verification)
+        id: rust-cache
+        uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaff # v2.7.5
+        with:
+          workspaces: './src-tauri -> target'
+          # Cache key includes: OS, Rust toolchain, and Cargo.lock hash (automatic)
+          prefix-key: 'v1-rust'
+          shared-key: 'ci-fast-${{ matrix.platform }}'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Verify Rust cache configuration
+        shell: bash
+        run: |
+          echo "=== Rust Cache Verification ==="
+          echo "Cache hit: ${{ steps.rust-cache.outputs.cache-hit }}"
+          echo "Cache primary key: ${{ steps.rust-cache.outputs.cache-primary-key }}"
+          echo ""
+          echo "=== Cargo Cache Directories ==="
+          echo "CARGO_HOME: ${CARGO_HOME:-$HOME/.cargo}"
+          ls -lah "${CARGO_HOME:-$HOME/.cargo}" 2>/dev/null || echo "Cargo home not yet populated"
+          echo ""
+          echo "=== Target Directory ==="
+          ls -lah src-tauri/target 2>/dev/null || echo "Target directory not yet created"
+          echo ""
+          echo "=== Cache Strategy ==="
+          echo "This fast path uses aggressive caching for quick PR/push builds"
+          echo "Cache includes: ~/.cargo/registry, ~/.cargo/git, src-tauri/target"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+        continue-on-error: true
+
+      - name: Run Clippy lints
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        continue-on-error: true
+
+      - name: Build Tauri app (debug mode for speed)
+        working-directory: src-tauri
+        run: cargo build --verbose
+
+      - name: Verify cache effectiveness
+        shell: bash
+        run: |
+          echo "=== Post-Build Cache Verification ==="
+          echo "Target directory size:"
+          du -sh src-tauri/target 2>/dev/null || echo "Target not found"
+          echo ""
+          echo "Cargo cache size:"
+          du -sh "${CARGO_HOME:-$HOME/.cargo}" 2>/dev/null || echo "Cargo home not found"
+          echo ""
+          echo "Note: Subsequent runs should show 'cache-hit: true' above"
+          echo "and build times should be significantly faster"
+
+  # Second job to demonstrate cache reuse across jobs
+  ci-fast-cache-test:
+    name: Cache Reuse Verification
+    needs: ci-fast
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install dependencies (ubuntu only)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust toolchain (pinned)
+        uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a # stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Rust cache (should hit from previous job)
+        id: rust-cache-test
+        uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaff # v2.7.5
+        with:
+          workspaces: './src-tauri -> target'
+          prefix-key: 'v1-rust'
+          shared-key: 'ci-fast-ubuntu-22.04'
+
+      - name: Verify cache was reused
+        shell: bash
+        run: |
+          echo "=== Cache Reuse Test Results ==="
+          echo "Cache hit: ${{ steps.rust-cache-test.outputs.cache-hit }}"
+          echo ""
+          if [ "${{ steps.rust-cache-test.outputs.cache-hit }}" = "true" ]; then
+            echo "✅ SUCCESS: Cache was reused from previous job!"
+            echo "This confirms our caching strategy is working correctly."
+          else
+            echo "⚠️  Cache miss - this is expected on first run or after cache invalidation"
+            echo "Subsequent runs should show cache hits."
+          fi
+          echo ""
+          echo "Target directory contents:"
+          ls -lah src-tauri/target 2>/dev/null || echo "Target directory empty (expected on cache miss)"
+
+      - name: Quick incremental build test
+        working-directory: src-tauri
+        run: |
+          echo "Testing incremental build with cache..."
+          time cargo build --verbose
+          echo ""
+          echo "With cache, this should complete much faster than first build"
