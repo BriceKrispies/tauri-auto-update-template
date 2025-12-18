@@ -168,18 +168,64 @@ async function main() {
   console.log('✅ Initialization Complete!');
   console.log('═══════════════════════════════════════════════════════════════\n');
 
+  const privateKey = fs.readFileSync(keyPath, 'utf8');
+
   console.log('📋 NEXT STEPS:\n');
 
-  console.log('1️⃣  Add GitHub Secret: TAURI_SIGNING_PRIVATE_KEY');
-  console.log('   Go to: https://github.com/' + owner + '/' + repo + '/settings/secrets/actions/new');
-  console.log('   Name: TAURI_SIGNING_PRIVATE_KEY');
-  console.log('   Value: Copy the ENTIRE content below:\n');
-  console.log('   ┌─────────────────────────────────────────────────────────┐');
-  const privateKey = fs.readFileSync(keyPath, 'utf8');
-  privateKey.split('\n').forEach(line => {
-    console.log('   │ ' + line.padEnd(55) + ' │');
-  });
-  console.log('   └─────────────────────────────────────────────────────────┘\n');
+  // Step 7: Try to set GitHub secret automatically
+  console.log('1️⃣  Add GitHub Secret: TAURI_SIGNING_PRIVATE_KEY\n');
+
+  const hasGhCli = exec('gh --version');
+  if (hasGhCli) {
+    const autoSet = await question('   Would you like to automatically set the GitHub secret? (y/n): ');
+    if (autoSet.toLowerCase() === 'y' || autoSet.toLowerCase() === 'yes') {
+      console.log('   Setting GitHub secret...');
+      try {
+        // Create temporary file for the secret
+        const tempFile = path.join(keyDir, '.temp-secret');
+        fs.writeFileSync(tempFile, privateKey);
+
+        execSync(
+          `gh secret set TAURI_SIGNING_PRIVATE_KEY --repo ${owner}/${repo} < "${tempFile}"`,
+          { stdio: 'inherit', shell: true }
+        );
+
+        // Clean up temp file
+        fs.unlinkSync(tempFile);
+
+        console.log('   ✓ GitHub secret TAURI_SIGNING_PRIVATE_KEY set successfully!\n');
+      } catch (error) {
+        console.error('   ❌ Failed to set secret automatically. Please set it manually.\n');
+        console.log('   Go to: https://github.com/' + owner + '/' + repo + '/settings/secrets/actions/new');
+        console.log('   Name: TAURI_SIGNING_PRIVATE_KEY');
+        console.log('   Value: Copy the ENTIRE content below:\n');
+        console.log('   ┌─────────────────────────────────────────────────────────┐');
+        privateKey.split('\n').forEach(line => {
+          console.log('   │ ' + line.padEnd(55) + ' │');
+        });
+        console.log('   └─────────────────────────────────────────────────────────┘\n');
+      }
+    } else {
+      console.log('   Go to: https://github.com/' + owner + '/' + repo + '/settings/secrets/actions/new');
+      console.log('   Name: TAURI_SIGNING_PRIVATE_KEY');
+      console.log('   Value: Copy the ENTIRE content below:\n');
+      console.log('   ┌─────────────────────────────────────────────────────────┐');
+      privateKey.split('\n').forEach(line => {
+        console.log('   │ ' + line.padEnd(55) + ' │');
+      });
+      console.log('   └─────────────────────────────────────────────────────────┘\n');
+    }
+  } else {
+    console.log('   💡 Tip: Install GitHub CLI (gh) for automatic secret setup!\n');
+    console.log('   Go to: https://github.com/' + owner + '/' + repo + '/settings/secrets/actions/new');
+    console.log('   Name: TAURI_SIGNING_PRIVATE_KEY');
+    console.log('   Value: Copy the ENTIRE content below:\n');
+    console.log('   ┌─────────────────────────────────────────────────────────┐');
+    privateKey.split('\n').forEach(line => {
+      console.log('   │ ' + line.padEnd(55) + ' │');
+    });
+    console.log('   └─────────────────────────────────────────────────────────┘\n');
+  }
 
   console.log('2️⃣  Test the setup:');
   console.log('   npm run validate\n');
