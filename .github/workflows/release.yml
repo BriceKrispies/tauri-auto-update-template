@@ -46,10 +46,8 @@ jobs:
         with:
           node-version: 20.11.0  # Pinned specific version
 
-      - name: Install Rust toolchain (pinned for hermetic builds)
+      - name: Install Rust toolchain (latest stable)
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.83.0  # Exact version for reproducibility
 
       - name: Verify hermetic build environment
         run: |
@@ -115,10 +113,9 @@ jobs:
         with:
           node-version: 20.11.0  # Pinned specific version
 
-      - name: Install Rust toolchain (pinned for hermetic builds)
+      - name: Install Rust toolchain (latest stable)
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.83.0  # Exact version for reproducibility
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Verify hermetic build environment
@@ -183,10 +180,8 @@ jobs:
         with:
           node-version: 20.11.0  # Pinned specific version
 
-      - name: Install Rust toolchain (pinned for hermetic builds)
+      - name: Install Rust toolchain (latest stable)
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.83.0  # Exact version for reproducibility
 
       - name: Verify hermetic build environment
         shell: bash

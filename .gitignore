@@ -32,3 +32,4 @@ src-tauri/target
 tauri.key
 tauri.key.pub
 .tauri/
+.aider*
