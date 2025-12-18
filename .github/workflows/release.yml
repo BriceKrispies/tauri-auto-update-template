@@ -53,6 +53,7 @@ jobs:
         run: npm install
 
       - name: Build the app
+        id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,3 +67,59 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+      - name: Check for signature files (debug)
+        run: |
+          echo "Checking for .sig files in bundle directory..."
+          find src-tauri/target -name "*.sig" || echo "No .sig files found"
+          echo ""
+          echo "Build artifacts:"
+          find src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle directory found"
+
+  verify-updater:
+    name: Verify updater JSON
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for release to be fully published
+        run: sleep 10
+
+      - name: Check for latest.json in release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Checking if latest.json was uploaded to release ${{ github.ref_name }}..."
+
+          # List all assets in the release
+          gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} \
+            --jq '.assets[].name' > assets.txt
+
+          echo "Assets found in release:"
+          cat assets.txt
+          echo ""
+
+          # Check for platform-specific updater JSON files
+          MISSING=""
+          for platform in darwin-x86_64 darwin-aarch64 linux-x86_64 windows-x86_64; do
+            if ! grep -q "latest-$platform.json" assets.txt; then
+              echo "❌ Missing: latest-$platform.json"
+              MISSING="$MISSING latest-$platform.json"
+            else
+              echo "✅ Found: latest-$platform.json"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "::error::Updater JSON files are missing: $MISSING"
+            echo "This means the auto-updater will NOT work!"
+            echo ""
+            echo "Common causes:"
+            echo "  1. Signing keys not configured correctly in GitHub secrets"
+            echo "  2. Binary stripping removing required metadata"
+            echo "  3. Tauri version mismatch between CLI and dependencies"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All updater JSON files present! Auto-update will work."

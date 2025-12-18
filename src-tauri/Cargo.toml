@@ -26,7 +26,7 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 dirs = "5.0"
 
 [profile.release]
-strip = true              # Strip debug symbols for smaller binaries
+strip = "debuginfo"       # Strip only debug symbols, keep other metadata for updater
 opt-level = "z"           # Optimize for size
 lto = true                # Enable Link Time Optimization
 codegen-units = 1         # Better optimization (slower compile, smaller output)

@@ -2,6 +2,34 @@
 
 This guide walks through the complete setup process for this Tauri auto-update template.
 
+## Automated Setup (Recommended)
+
+The fastest way to set up a new project from this template:
+
+```bash
+# After cloning your new repository
+npm install
+npm run init
+```
+
+The init script will automatically:
+1. Detect your GitHub repository from git remote
+2. Generate signing keypairs
+3. Update `tauri.conf.json` with your repo URL and public key
+4. Customize app metadata (name, identifier)
+5. Display your private key and GitHub secret instructions
+
+**Then just:**
+1. Add the private key to GitHub Secrets (shown in output)
+2. Run `npm run validate` to verify setup
+3. Create your first release: `git tag v0.1.0 && git push --tags`
+
+---
+
+## Manual Setup
+
+If you prefer to set up manually or need to customize further, follow the steps below.
+
 ## Initial Setup
 
 ### 1. Install System Dependencies

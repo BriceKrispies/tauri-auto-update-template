@@ -12,7 +12,8 @@
     "tauri:build": "tauri build",
     "tauri:icon": "tauri icon",
     "check": "tsc --noEmit",
-    "validate": "node validate-setup.js"
+    "validate": "node validate-setup.js",
+    "init": "node init-template.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",

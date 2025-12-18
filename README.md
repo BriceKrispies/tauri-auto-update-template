@@ -22,6 +22,34 @@ A minimal, production-ready Tauri v2 desktop application with built-in auto-upda
 
 ## Quick Start
 
+### For Template Users (Recommended)
+
+If you're using this as a template for a new project:
+
+```bash
+# 1. Create a new repo from this template on GitHub
+# 2. Clone your new repo
+git clone https://github.com/your-username/your-repo.git
+cd your-repo
+
+# 3. Install dependencies
+npm install
+
+# 4. Run the automated setup
+npm run init
+```
+
+The `init` script will:
+- Auto-detect your GitHub repository
+- Generate signing keypairs
+- Configure the updater endpoint and public key
+- Update app metadata (name, identifier)
+- Display instructions for adding GitHub secrets
+
+### Manual Setup
+
+Alternatively, follow the manual setup steps below.
+
 ### 1. Clone and Install
 
 ```bash
