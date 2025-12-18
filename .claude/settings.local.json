@@ -7,7 +7,20 @@
       "Bash(npm run validate:*)",
       "Bash(npm run check:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(cargo tauri signer generate --help:*)",
+      "Bash(cargo tauri signer:*)",
+      "Bash(git push)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)",
+      "Bash(gh workflow view:*)",
+      "Bash(gh api:*)",
+      "Bash(grep:*)",
+      "Bash(cargo check:*)",
+      "Bash(make help:*)",
+      "Bash(make logs:*)"
     ]
   }
 }
